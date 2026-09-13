@@ -3,8 +3,10 @@ import {
   Activity, ArrowRight, BarChart3, Bell, BookOpen, CalendarDays, Check, ChevronDown,
   CirclePause, CirclePlay, Clock3, LayoutDashboard, Menu, NotebookPen, Plus, Search,
   Settings, ShieldCheck, Sparkles, Target, Trash2, Trophy, Users, X,
+  Pencil,
 } from 'lucide-react'
 import { demoData, loadFplData } from './data'
+import { updatePlanTeamSelection } from './plans'
 import { averageDifficulty, getClubWeek, getRotationWeeks, rotationScore } from './rotation'
 import { loadPlans, savePlans } from './storage'
 import type { FplData, GameweekKey, PlanStatus, RotationPlan, Team, TeamFixture } from './types'
@@ -70,13 +72,14 @@ function Difficulty({ value }: { value: number | null }) {
   return <span className={`difficulty difficulty--${rounded}`}>{Number.isInteger(value) ? value : value.toFixed(1)}</span>
 }
 
-function PlanCreator({ teams, onClose, onCreate }: {
+function PlanEditor({ teams, plan, onClose, onSave }: {
   teams: Team[]
+  plan?: RotationPlan
   onClose: () => void
-  onCreate: (name: string, teamIds: number[]) => void
+  onSave: (name: string, teamIds: number[]) => void
 }) {
-  const [name, setName] = useState('')
-  const [selected, setSelected] = useState<number[]>([])
+  const [name, setName] = useState(plan?.name ?? '')
+  const [selected, setSelected] = useState<number[]>(plan?.teamIds ?? [])
   const [query, setQuery] = useState('')
   const visibleTeams = teams.filter((team) =>
     `${team.name} ${team.shortName}`.toLowerCase().includes(query.toLowerCase()),
@@ -95,8 +98,8 @@ function PlanCreator({ teams, onClose, onCreate }: {
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="creator-title">
         <div className="modal__header">
           <div>
-            <span className="eyebrow">New rotation</span>
-            <h2 id="creator-title">Build a rotation group</h2>
+            <span className="eyebrow">{plan ? 'Edit rotation' : 'New rotation'}</span>
+            <h2 id="creator-title">{plan ? 'Update teams' : 'Build a rotation group'}</h2>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Close"><X size={19} /></button>
         </div>
@@ -144,9 +147,9 @@ function PlanCreator({ teams, onClose, onCreate }: {
           <button
             className="button button--primary"
             disabled={selected.length < 2 || !name.trim()}
-            onClick={() => onCreate(name.trim(), selected)}
+            onClick={() => onSave(name.trim(), selected)}
           >
-            Create rotation <ArrowRight size={17} />
+            {plan ? 'Save changes' : 'Create rotation'} <ArrowRight size={17} />
           </button>
         </div>
       </section>
@@ -182,10 +185,12 @@ function RotationCard({ plan, teams, fixtures, gameweeks, selected, onSelect }: 
   )
 }
 
-function RotationDetail({ plan, data, onChange, onDelete }: {
+function RotationDetail({ plan, data, editingDisabled, onChange, onEditTeams, onDelete }: {
   plan: RotationPlan
   data: FplData
+  editingDisabled: boolean
   onChange: (plan: RotationPlan) => void
+  onEditTeams: () => void
   onDelete: () => void
 }) {
   const [saved, setSaved] = useState(false)
@@ -219,9 +224,10 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
           </div>
           <h2>{plan.name}</h2>
           <p>Highlighted cells show your current picks; “auto” marks the lowest adjusted rotation difficulty.</p>
-          {isIncomplete && <div className="incomplete-warning">A saved club is unavailable this season. This plan was paused; rebuild it before use.</div>}
+          {isIncomplete && <div className="incomplete-warning">A saved club is unavailable this season. This plan was paused; edit teams to replace it.</div>}
         </div>
         <div className="detail-actions">
+          <button className="button button--ghost" disabled={editingDisabled} onClick={onEditTeams}><Pencil size={16} /> Edit teams</button>
           <button
             className={`button ${plan.status === 'active' ? 'button--pause' : 'button--resume'}`}
             disabled={isIncomplete}
@@ -308,7 +314,7 @@ export default function App() {
   const [plans, setPlans] = useState<RotationPlan[]>(initialPlans)
   const [selectedId, setSelectedId] = useState(initialPlans[0]?.id ?? '')
   const [filter, setFilter] = useState<Filter>('all')
-  const [showCreator, setShowCreator] = useState(false)
+  const [editorPlanId, setEditorPlanId] = useState<string | 'new' | null>(null)
   const [mobileNav, setMobileNav] = useState(false)
 
   useEffect(() => {
@@ -333,6 +339,9 @@ export default function App() {
   const activeCount = plans.filter((plan) => plan.status === 'active').length
   const scoredPlans = plans.map((plan) => ({ plan, score: rotationScore(getRotationWeeks(plan, data.fixtures, data.gameweeks, data.teams)) }))
   const topPlan = scoredPlans.sort((a, b) => b.score - a.score)[0]
+  const planBeingEdited = editorPlanId && editorPlanId !== 'new'
+    ? plans.find((plan) => plan.id === editorPlanId)
+    : undefined
 
   const createPlan = (name: string, teamIds: number[]) => {
     const plan: RotationPlan = {
@@ -348,10 +357,17 @@ export default function App() {
     setPlans((current) => [plan, ...current])
     setSelectedId(plan.id)
     setFilter('all')
-    setShowCreator(false)
+    setEditorPlanId(null)
   }
 
   const updatePlan = (updated: RotationPlan) => setPlans((current) => current.map((plan) => plan.id === updated.id ? updated : plan))
+
+  const saveEditedPlan = (name: string, teamIds: number[]) => {
+    if (!planBeingEdited) return
+    updatePlan(updatePlanTeamSelection(planBeingEdited, name, teamIds, data.teams))
+    setEditorPlanId(null)
+  }
+
   const deletePlan = () => {
     if (!selectedPlan || !window.confirm(`Delete “${selectedPlan.name}”?`)) return
     const nextPlans = plans.filter((plan) => plan.id !== selectedPlan.id)
@@ -393,7 +409,7 @@ export default function App() {
         <div className="page">
           <div className="page-heading">
             <div><span className="eyebrow">Planning workspace</span><h1>Rotation Lab</h1><p>Find the cleanest fixture runs, then capture the thinking behind every move.</p></div>
-            <button className="button button--primary button--large" onClick={() => setShowCreator(true)}><Plus size={18} /> New rotation</button>
+            <button className="button button--primary button--large" disabled={isLoading} onClick={() => setEditorPlanId('new')}><Plus size={18} /> New rotation</button>
           </div>
 
           <section className="metrics-grid">
@@ -413,16 +429,22 @@ export default function App() {
           <div className="plan-layout">
             <div className="plan-list">
               {visiblePlans.map((plan) => <RotationCard key={plan.id} plan={plan} teams={data.teams} fixtures={data.fixtures} gameweeks={data.gameweeks} selected={selectedPlan?.id === plan.id} onSelect={() => setSelectedId(plan.id)} />)}
-              <button className="new-plan-card" onClick={() => setShowCreator(true)}><span><Plus size={20} /></span><strong>Compare another rotation</strong><small>Choose 2 or more clubs</small></button>
+              <button className="new-plan-card" disabled={isLoading} onClick={() => setEditorPlanId('new')}><span><Plus size={20} /></span><strong>Compare another rotation</strong><small>Choose 2 or more clubs</small></button>
               {visiblePlans.length === 0 && <div className="empty-filter"><CirclePause size={22} /><strong>No {filter} plans</strong><span>Try another filter or create a rotation.</span></div>}
             </div>
-            {selectedPlan ? <RotationDetail plan={selectedPlan} data={data} onChange={updatePlan} onDelete={deletePlan} /> : <section className="empty-detail"><Target size={32} /><h2>Build your first rotation</h2><p>Compare clubs across upcoming fixtures and save your decision notes.</p><button className="button button--primary" onClick={() => setShowCreator(true)}><Plus size={17} /> New rotation</button></section>}
+            {selectedPlan ? <RotationDetail plan={selectedPlan} data={data} editingDisabled={isLoading} onChange={updatePlan} onEditTeams={() => setEditorPlanId(selectedPlan.id)} onDelete={deletePlan} /> : <section className="empty-detail"><Target size={32} /><h2>Build your first rotation</h2><p>Compare clubs across upcoming fixtures and save your decision notes.</p><button className="button button--primary" disabled={isLoading} onClick={() => setEditorPlanId('new')}><Plus size={17} /> New rotation</button></section>}
           </div>
 
           <footer className="page-footer"><span><Clock3 size={14} /> Fixture data {data.isLive ? 'from the official FPL API' : 'is in demo mode'} · score is a fixture-only heuristic</span><span>Touchline v0.1</span></footer>
         </div>
       </main>
-      {showCreator && <PlanCreator teams={data.teams} onClose={() => setShowCreator(false)} onCreate={createPlan} />}
+      {editorPlanId && <PlanEditor
+        key={editorPlanId}
+        teams={data.teams}
+        plan={planBeingEdited}
+        onClose={() => setEditorPlanId(null)}
+        onSave={editorPlanId === 'new' ? createPlan : saveEditedPlan}
+      />}
     </div>
   )
 }
