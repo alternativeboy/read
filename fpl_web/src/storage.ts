@@ -1,4 +1,4 @@
-import type { RotationPlan } from './types'
+import type { ManualPicks, RotationPlan } from './types'
 
 const STORAGE_KEY = 'touchline.rotation-plans.v2'
 
@@ -16,12 +16,21 @@ function isPlan(value: unknown): value is RotationPlan {
     && typeof plan.createdAt === 'string'
 }
 
+function validManualPicks(value: unknown): value is ManualPicks {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.entries(value).every(([gameweek, teamKey]) => /^\d+$/.test(gameweek) && typeof teamKey === 'string')
+}
+
 export function loadPlans(): RotationPlan[] | null {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
     if (!value) return null
     const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) && parsed.every(isPlan) ? parsed : null
+    if (!Array.isArray(parsed) || !parsed.every(isPlan)) return null
+    return parsed.map((plan) => ({
+      ...plan,
+      manualPicks: validManualPicks(plan.manualPicks) ? plan.manualPicks : {},
+    }))
   } catch {
     return null
   }

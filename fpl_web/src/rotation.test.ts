@@ -12,7 +12,7 @@ const fixtures: TeamFixture[] = [
 describe('rotation planning', () => {
   it('chooses the easiest club in each gameweek', () => {
     const weeks = getRotationWeeks({ teamIds: [1, 2] }, fixtures, [1, 2])
-    expect(weeks.map((week) => week.bestTeamId)).toEqual([2, 1])
+    expect(weeks.map((week) => week.pickedTeamId)).toEqual([2, 1])
     expect(weeks.map((week) => week.difficulty)).toEqual([2, 1])
   })
 
@@ -33,8 +33,32 @@ describe('rotation planning', () => {
       { event: 1, teamId: 1, opponentId: 14, venue: 'H', difficulty: 1 },
     ]
     const [week] = getRotationWeeks({ teamIds: [1, 2] }, doubleFixtures, [1])
-    expect(week.bestTeamId).toBe(1)
+    expect(week.pickedTeamId).toBe(1)
     expect(week.fixtureCount).toBe(2)
     expect(week.difficulty).toBe(1.75)
+  })
+
+  it('uses a saved manual choice while preserving the automatic suggestion', () => {
+    const [week] = getRotationWeeks(
+      { teamIds: [1, 2], manualPicks: { 1: 'ONE' } },
+      fixtures,
+      [1],
+      [{ id: 1, key: 'ONE' }, { id: 2, key: 'TWO' }],
+    )
+    expect(week.suggestedTeamId).toBe(2)
+    expect(week.pickedTeamId).toBe(1)
+    expect(week.isManual).toBe(true)
+    expect(week.difficulty).toBe(4)
+  })
+
+  it('ignores a manual choice that is not part of the plan', () => {
+    const [week] = getRotationWeeks(
+      { teamIds: [1, 2], manualPicks: { 1: 'OTHER' } },
+      fixtures,
+      [1],
+      [{ id: 1, key: 'ONE' }, { id: 2, key: 'TWO' }, { id: 3, key: 'OTHER' }],
+    )
+    expect(week.pickedTeamId).toBe(2)
+    expect(week.isManual).toBe(false)
   })
 })

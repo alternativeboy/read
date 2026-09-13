@@ -7,7 +7,7 @@ import {
 import { demoData, loadFplData } from './data'
 import { averageDifficulty, getClubWeek, getRotationWeeks, rotationScore } from './rotation'
 import { loadPlans, savePlans } from './storage'
-import type { FplData, PlanStatus, RotationPlan, Team, TeamFixture } from './types'
+import type { FplData, GameweekKey, PlanStatus, RotationPlan, Team, TeamFixture } from './types'
 
 type Filter = 'all' | PlanStatus
 
@@ -17,6 +17,7 @@ const initialPlans: RotationPlan[] = loadPlans() ?? [
     name: 'Premium defence rotation',
     teamIds: [1, 2, 3],
     teamKeys: ['ARS', 'AVL', 'BOU'],
+    manualPicks: {},
     status: 'active',
     note: 'Start the defender with the kinder fixture. Review after the next international break.',
     createdAt: new Date().toISOString(),
@@ -26,6 +27,7 @@ const initialPlans: RotationPlan[] = loadPlans() ?? [
     name: 'Budget keeper pair',
     teamIds: [4, 5],
     teamKeys: ['BRE', 'BHA'],
+    manualPicks: {},
     status: 'paused',
     note: 'Pause until both first-choice keepers are confirmed fit.',
     createdAt: new Date().toISOString(),
@@ -153,7 +155,7 @@ function RotationCard({ plan, teams, fixtures, gameweeks, selected, onSelect }: 
 }) {
   const planTeams = plan.teamIds.flatMap((id) => teams.find((team) => team.id === id) ?? [])
   const missingTeamCount = Math.max(0, plan.teamKeys.length - planTeams.length)
-  const weeks = getRotationWeeks(plan, fixtures, gameweeks)
+  const weeks = getRotationWeeks(plan, fixtures, gameweeks, teams)
   const score = rotationScore(weeks)
   return (
     <button className={`plan-card ${selected ? 'plan-card--selected' : ''}`} onClick={onSelect}>
@@ -182,7 +184,7 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
   const [saved, setSaved] = useState(false)
   const planTeams = plan.teamIds.flatMap((id) => data.teams.find((team) => team.id === id) ?? [])
   const isIncomplete = planTeams.length !== plan.teamKeys.length
-  const weeks = getRotationWeeks(plan, data.fixtures, data.gameweeks)
+  const weeks = getRotationWeeks(plan, data.fixtures, data.gameweeks, data.teams)
   const score = rotationScore(weeks)
   const average = averageDifficulty(weeks)
 
@@ -190,6 +192,14 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
     onChange({ ...plan, note })
     setSaved(true)
     window.setTimeout(() => setSaved(false), 1500)
+  }
+
+  const toggleManualPick = (gameweek: number, teamKey: string) => {
+    const weekKey = `${gameweek}` as GameweekKey
+    const manualPicks = { ...plan.manualPicks }
+    if (manualPicks[weekKey] === teamKey) delete manualPicks[weekKey]
+    else manualPicks[weekKey] = teamKey
+    onChange({ ...plan, manualPicks })
   }
 
   return (
@@ -203,7 +213,7 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
             <StatusPill status={plan.status} />
           </div>
           <h2>{plan.name}</h2>
-          <p>Choose the highlighted club each week for the lowest adjusted rotation difficulty.</p>
+          <p>Highlighted cells show your current picks; “auto” marks the lowest adjusted rotation difficulty.</p>
           {isIncomplete && <div className="incomplete-warning">A saved club is unavailable this season. This plan was paused; rebuild it before use.</div>}
         </div>
         <div className="detail-actions">
@@ -229,7 +239,7 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
       </div>
 
       <div className="section-heading">
-        <div><span className="eyebrow">Fixture map</span><h3>Upcoming gameweeks</h3></div>
+        <div><span className="eyebrow">Fixture map</span><h3>Upcoming gameweeks</h3><p>Click a fixture to pick it manually. Click your manual pick again to return to auto.</p></div>
         <div className="legend"><span><i className="legend__easy" />Easy</span><span><i className="legend__hard" />Hard</span><span>DGW: −0.75 boost</span></div>
       </div>
 
@@ -242,17 +252,26 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
                 <th><TeamMark team={team} size="sm" /><span>{team.shortName}</span></th>
                 {data.gameweeks.map((gw) => {
                   const clubWeek = getClubWeek(team.id, data.fixtures, gw)
-                  const isBest = weeks.find((week) => week.gameweek === gw)?.bestTeamId === team.id
+                  const week = weeks.find((item) => item.gameweek === gw)
+                  const isPicked = week?.pickedTeamId === team.id
+                  const isSuggested = week?.suggestedTeamId === team.id
+                  const isManual = isPicked && week?.isManual
                   return (
-                    <td key={gw} className={isBest ? 'fixture-cell--best' : ''}>
-                      <div className="fixture-cell">
+                    <td key={gw} className={isPicked ? 'fixture-cell--best' : ''}>
+                      <button
+                        className="fixture-cell"
+                        disabled={!clubWeek || isIncomplete}
+                        onClick={() => toggleManualPick(gw, team.key)}
+                        aria-label={isManual ? `Clear manual pick for ${team.name} in gameweek ${gw}` : `Pick ${team.name} manually for gameweek ${gw}`}
+                      >
                         <span>{clubWeek?.fixtures.map((fixture) => {
                           const opponent = data.teams.find((item) => item.id === fixture.opponentId)
                           return `${opponent?.shortName ?? '—'} ${fixture.venue.toLowerCase()}`
                         }).join(' · ') ?? '—'}</span>
                         <Difficulty value={clubWeek?.rotationDifficulty ?? null} />
-                        {isBest && <span className="best-label"><Check size={10} /> pick{clubWeek && clubWeek.fixtures.length > 1 ? ' · DGW' : ''}</span>}
-                      </div>
+                        {isPicked && <span className={`best-label ${isManual ? 'best-label--manual' : ''}`}><Check size={10} /> {isManual ? 'manual' : 'pick'}{isManual && isSuggested ? ' · auto' : ''}{clubWeek && clubWeek.fixtures.length > 1 ? ' · DGW' : ''}</span>}
+                        {!isPicked && isSuggested && <span className="auto-label">auto</span>}
+                      </button>
                     </td>
                   )
                 })}
@@ -307,7 +326,7 @@ export default function App() {
   const visiblePlans = useMemo(() => plans.filter((plan) => filter === 'all' || plan.status === filter), [plans, filter])
   const selectedPlan = visiblePlans.find((plan) => plan.id === selectedId) ?? visiblePlans[0]
   const activeCount = plans.filter((plan) => plan.status === 'active').length
-  const scoredPlans = plans.map((plan) => ({ plan, score: rotationScore(getRotationWeeks(plan, data.fixtures, data.gameweeks)) }))
+  const scoredPlans = plans.map((plan) => ({ plan, score: rotationScore(getRotationWeeks(plan, data.fixtures, data.gameweeks, data.teams)) }))
   const topPlan = scoredPlans.sort((a, b) => b.score - a.score)[0]
 
   const createPlan = (name: string, teamIds: number[]) => {
@@ -316,6 +335,7 @@ export default function App() {
       name,
       teamIds,
       teamKeys: teamIds.flatMap((id) => data.teams.find((team) => team.id === id)?.key ?? []),
+      manualPicks: {},
       status: 'active',
       note: '',
       createdAt: new Date().toISOString(),

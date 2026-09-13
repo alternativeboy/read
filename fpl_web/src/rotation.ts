@@ -1,8 +1,10 @@
-import type { RotationPlan, TeamFixture } from './types'
+import type { GameweekKey, RotationPlan, Team, TeamFixture } from './types'
 
 export interface WeekRotation {
   gameweek: number
-  bestTeamId: number | null
+  pickedTeamId: number | null
+  suggestedTeamId: number | null
+  isManual: boolean
   difficulty: number | null
   fixtureCount: number
 }
@@ -29,23 +31,32 @@ export function getClubWeek(teamId: number, fixtures: TeamFixture[], gameweek: n
 }
 
 export function getRotationWeeks(
-  plan: Pick<RotationPlan, 'teamIds'>,
+  plan: Pick<RotationPlan, 'teamIds'> & Partial<Pick<RotationPlan, 'manualPicks'>>,
   fixtures: TeamFixture[],
   gameweeks: number[],
+  teams: Pick<Team, 'id' | 'key'>[] = [],
 ): WeekRotation[] {
   if (plan.teamIds.length < 2) {
-    return gameweeks.map((gameweek) => ({ gameweek, bestTeamId: null, difficulty: null, fixtureCount: 0 }))
+    return gameweeks.map((gameweek) => ({ gameweek, pickedTeamId: null, suggestedTeamId: null, isManual: false, difficulty: null, fixtureCount: 0 }))
   }
   return gameweeks.map((gameweek) => {
     const options = plan.teamIds
       .flatMap((teamId) => getClubWeek(teamId, fixtures, gameweek) ?? [])
       .sort((a, b) => a.rotationDifficulty - b.rotationDifficulty || a.teamId - b.teamId)
+    const suggested = options[0]
+    const gameweekKey = `${gameweek}` as GameweekKey
+    const manualKey = plan.manualPicks?.[gameweekKey]
+    const manualTeamId = teams.find((team) => team.key === manualKey)?.id
+    const manual = options.find((option) => option.teamId === manualTeamId)
+    const picked = manual ?? suggested
 
     return {
       gameweek,
-      bestTeamId: options[0]?.teamId ?? null,
-      difficulty: options[0]?.rotationDifficulty ?? null,
-      fixtureCount: options[0]?.fixtures.length ?? 0,
+      pickedTeamId: picked?.teamId ?? null,
+      suggestedTeamId: suggested?.teamId ?? null,
+      isManual: Boolean(manual),
+      difficulty: picked?.rotationDifficulty ?? null,
+      fixtureCount: picked?.fixtures.length ?? 0,
     }
   })
 }
