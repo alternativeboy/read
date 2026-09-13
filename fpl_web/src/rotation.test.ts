@@ -61,4 +61,15 @@ describe('rotation planning', () => {
     expect(week.pickedTeamId).toBe(2)
     expect(week.isManual).toBe(false)
   })
+
+  it('supports rotations containing more than three clubs', () => {
+    const expandedFixtures: TeamFixture[] = [
+      ...fixtures,
+      { event: 1, teamId: 3, opponentId: 14, venue: 'A', difficulty: 3 },
+      { event: 1, teamId: 4, opponentId: 15, venue: 'H', difficulty: 1 },
+    ]
+    const [week] = getRotationWeeks({ teamIds: [1, 2, 3, 4] }, expandedFixtures, [1])
+    expect(week.pickedTeamId).toBe(4)
+    expect(week.difficulty).toBe(1)
+  })
 })

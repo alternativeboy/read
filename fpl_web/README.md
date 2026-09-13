@@ -1,6 +1,6 @@
 # Touchline
 
-A local-first FPL workbench. The first module, **Rotation Lab**, helps compare two or three Premier League clubs over the next eight gameweeks.
+A local-first FPL workbench. The first module, **Rotation Lab**, helps compare any number of Premier League clubs over the next eight gameweeks.
 
 ## What works
 

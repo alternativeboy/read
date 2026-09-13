@@ -46,6 +46,16 @@ function TeamMark({ team, size = 'md' }: { team: Team; size?: 'sm' | 'md' }) {
   )
 }
 
+function TeamStack({ teams, max = 4 }: { teams: Team[]; max?: number }) {
+  const hiddenCount = Math.max(0, teams.length - max)
+  return (
+    <div className="team-stack" aria-label={teams.map((team) => team.name).join(', ')}>
+      {teams.slice(0, max).map((team) => <TeamMark team={team} key={team.id} />)}
+      {hiddenCount > 0 && <span className="team-overflow">+{hiddenCount}</span>}
+    </div>
+  )
+}
+
 function StatusPill({ status }: { status: PlanStatus }) {
   return (
     <span className={`status-pill status-pill--${status}`}>
@@ -75,7 +85,7 @@ function PlanCreator({ teams, onClose, onCreate }: {
   const toggleTeam = (teamId: number) => {
     setSelected((current) => current.includes(teamId)
       ? current.filter((id) => id !== teamId)
-      : current.length < 3 ? [...current, teamId] : current)
+      : [...current, teamId])
   }
 
   return (
@@ -86,7 +96,7 @@ function PlanCreator({ teams, onClose, onCreate }: {
         <div className="modal__header">
           <div>
             <span className="eyebrow">New rotation</span>
-            <h2 id="creator-title">Build a fixture pairing</h2>
+            <h2 id="creator-title">Build a rotation group</h2>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Close"><X size={19} /></button>
         </div>
@@ -103,8 +113,8 @@ function PlanCreator({ teams, onClose, onCreate }: {
 
         <div className="picker-heading">
           <div>
-            <span className="field-label">Select 2–3 clubs</span>
-            <span className="picker-count">{selected.length}/3 selected</span>
+            <span className="field-label">Select 2 or more clubs</span>
+            <span className="picker-count">{selected.length} selected · no maximum</span>
           </div>
           <label className="team-search">
             <Search size={16} />
@@ -120,7 +130,6 @@ function PlanCreator({ teams, onClose, onCreate }: {
                 key={team.id}
                 className={`team-option ${isSelected ? 'team-option--selected' : ''}`}
                 onClick={() => toggleTeam(team.id)}
-                disabled={!isSelected && selected.length === 3}
               >
                 <TeamMark team={team} size="sm" />
                 <span>{team.name}</span>
@@ -160,9 +169,7 @@ function RotationCard({ plan, teams, fixtures, gameweeks, selected, onSelect }: 
   return (
     <button className={`plan-card ${selected ? 'plan-card--selected' : ''}`} onClick={onSelect}>
       <div className="plan-card__top">
-        <div className="team-stack">
-          {planTeams.map((team) => <TeamMark team={team} key={team.id} />)}
-        </div>
+        <TeamStack teams={planTeams} />
         <StatusPill status={plan.status} />
       </div>
       <h3>{plan.name}</h3>
@@ -207,9 +214,7 @@ function RotationDetail({ plan, data, onChange, onDelete }: {
       <div className="detail-card__header">
         <div>
           <div className="detail-title-row">
-            <div className="team-stack">
-              {planTeams.map((team) => <TeamMark team={team} key={team.id} />)}
-            </div>
+            <TeamStack teams={planTeams} max={6} />
             <StatusPill status={plan.status} />
           </div>
           <h2>{plan.name}</h2>
@@ -408,7 +413,7 @@ export default function App() {
           <div className="plan-layout">
             <div className="plan-list">
               {visiblePlans.map((plan) => <RotationCard key={plan.id} plan={plan} teams={data.teams} fixtures={data.fixtures} gameweeks={data.gameweeks} selected={selectedPlan?.id === plan.id} onSelect={() => setSelectedId(plan.id)} />)}
-              <button className="new-plan-card" onClick={() => setShowCreator(true)}><span><Plus size={20} /></span><strong>Compare another rotation</strong><small>Choose 2–3 clubs</small></button>
+              <button className="new-plan-card" onClick={() => setShowCreator(true)}><span><Plus size={20} /></span><strong>Compare another rotation</strong><small>Choose 2 or more clubs</small></button>
               {visiblePlans.length === 0 && <div className="empty-filter"><CirclePause size={22} /><strong>No {filter} plans</strong><span>Try another filter or create a rotation.</span></div>}
             </div>
             {selectedPlan ? <RotationDetail plan={selectedPlan} data={data} onChange={updatePlan} onDelete={deletePlan} /> : <section className="empty-detail"><Target size={32} /><h2>Build your first rotation</h2><p>Compare clubs across upcoming fixtures and save your decision notes.</p><button className="button button--primary" onClick={() => setShowCreator(true)}><Plus size={17} /> New rotation</button></section>}
