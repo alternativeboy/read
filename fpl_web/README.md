@@ -7,6 +7,7 @@ A local-first FPL workbench. The first module, **Rotation Lab**, helps compare a
 - Create and delete rotation plans
 - Add or remove clubs after creating a rotation
 - Compare fixture difficulty and see the recommended club per gameweek
+- Manually select multiple clubs in the same gameweek
 - Score each rotation with a fixture-only heuristic based on difficulty and coverage
 - Mark a rotation as in use or paused
 - Keep notes with each rotation

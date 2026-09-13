@@ -7,9 +7,10 @@ export function updatePlanTeamSelection(
   teams: Team[],
 ): RotationPlan {
   const teamKeys = teamIds.flatMap((id) => teams.find((team) => team.id === id)?.key ?? [])
-  const manualPicks = Object.fromEntries(
-    Object.entries(plan.manualPicks).filter(([, teamKey]) => teamKey && teamKeys.includes(teamKey)),
-  ) as ManualPicks
+  const manualPicks = Object.fromEntries(Object.entries(plan.manualPicks).flatMap(([gameweek, pickedKeys]) => {
+    const retainedKeys = (pickedKeys ?? []).filter((teamKey) => teamKeys.includes(teamKey))
+    return retainedKeys.length > 0 ? [[gameweek, retainedKeys]] : []
+  })) as ManualPicks
 
   return { ...plan, name, teamIds, teamKeys, manualPicks }
 }

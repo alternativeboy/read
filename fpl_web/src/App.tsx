@@ -209,8 +209,12 @@ function RotationDetail({ plan, data, editingDisabled, onChange, onEditTeams, on
   const toggleManualPick = (gameweek: number, teamKey: string) => {
     const weekKey = `${gameweek}` as GameweekKey
     const manualPicks = { ...plan.manualPicks }
-    if (manualPicks[weekKey] === teamKey) delete manualPicks[weekKey]
-    else manualPicks[weekKey] = teamKey
+    const currentPicks = manualPicks[weekKey] ?? []
+    const nextPicks = currentPicks.includes(teamKey)
+      ? currentPicks.filter((key) => key !== teamKey)
+      : [...currentPicks, teamKey]
+    if (nextPicks.length === 0) delete manualPicks[weekKey]
+    else manualPicks[weekKey] = nextPicks
     onChange({ ...plan, manualPicks })
   }
 
@@ -250,7 +254,7 @@ function RotationDetail({ plan, data, editingDisabled, onChange, onEditTeams, on
       </div>
 
       <div className="section-heading">
-        <div><span className="eyebrow">Fixture map</span><h3>Upcoming gameweeks</h3><p>Click a fixture to pick it manually. Click your manual pick again to return to auto.</p></div>
+        <div><span className="eyebrow">Fixture map</span><h3>Upcoming gameweeks</h3><p>Pick multiple clubs in each column. Clear every manual pick in a gameweek to return to auto.</p></div>
         <div className="legend"><span><i className="legend__easy" />Easy</span><span><i className="legend__hard" />Hard</span><span>DGW: −0.75 boost</span></div>
       </div>
 
@@ -264,7 +268,7 @@ function RotationDetail({ plan, data, editingDisabled, onChange, onEditTeams, on
                 {data.gameweeks.map((gw) => {
                   const clubWeek = getClubWeek(team.id, data.fixtures, gw)
                   const week = weeks.find((item) => item.gameweek === gw)
-                  const isPicked = week?.pickedTeamId === team.id
+                  const isPicked = week?.pickedTeamIds.includes(team.id)
                   const isSuggested = week?.suggestedTeamId === team.id
                   const isManual = isPicked && week?.isManual
                   return (

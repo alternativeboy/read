@@ -13,7 +13,7 @@ const plan: RotationPlan = {
   name: 'Original',
   teamIds: [1, 2],
   teamKeys: ['ONE', 'TWO'],
-  manualPicks: { 5: 'ONE', 6: 'TWO' },
+  manualPicks: { 5: ['ONE', 'TWO'], 6: ['TWO'] },
   status: 'active',
   note: 'Keep this note',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -31,6 +31,6 @@ describe('updating a rotation team selection', () => {
 
   it('clears manual picks for a removed team', () => {
     const updated = updatePlanTeamSelection(plan, plan.name, [1, 3], teams)
-    expect(updated.manualPicks).toEqual({ 5: 'ONE' })
+    expect(updated.manualPicks).toEqual({ 5: ['ONE'] })
   })
 })

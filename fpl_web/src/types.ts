@@ -1,7 +1,7 @@
 export type PlanStatus = 'active' | 'paused'
 export type TeamKey = string
 export type GameweekKey = `${number}`
-export type ManualPicks = Partial<Record<GameweekKey, TeamKey>>
+export type ManualPicks = Partial<Record<GameweekKey, TeamKey[]>>
 
 export interface Team {
   id: number

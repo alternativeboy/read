@@ -2,7 +2,7 @@ import type { GameweekKey, RotationPlan, Team, TeamFixture } from './types'
 
 export interface WeekRotation {
   gameweek: number
-  pickedTeamId: number | null
+  pickedTeamIds: number[]
   suggestedTeamId: number | null
   isManual: boolean
   difficulty: number | null
@@ -37,7 +37,7 @@ export function getRotationWeeks(
   teams: Pick<Team, 'id' | 'key'>[] = [],
 ): WeekRotation[] {
   if (plan.teamIds.length < 2) {
-    return gameweeks.map((gameweek) => ({ gameweek, pickedTeamId: null, suggestedTeamId: null, isManual: false, difficulty: null, fixtureCount: 0 }))
+    return gameweeks.map((gameweek) => ({ gameweek, pickedTeamIds: [], suggestedTeamId: null, isManual: false, difficulty: null, fixtureCount: 0 }))
   }
   return gameweeks.map((gameweek) => {
     const options = plan.teamIds
@@ -45,18 +45,21 @@ export function getRotationWeeks(
       .sort((a, b) => a.rotationDifficulty - b.rotationDifficulty || a.teamId - b.teamId)
     const suggested = options[0]
     const gameweekKey = `${gameweek}` as GameweekKey
-    const manualKey = plan.manualPicks?.[gameweekKey]
-    const manualTeamId = teams.find((team) => team.key === manualKey)?.id
-    const manual = options.find((option) => option.teamId === manualTeamId)
-    const picked = manual ?? suggested
+    const manualKeys = plan.manualPicks?.[gameweekKey] ?? []
+    const manualTeamIds = new Set(teams.filter((team) => manualKeys.includes(team.key)).map((team) => team.id))
+    const manual = options.filter((option) => manualTeamIds.has(option.teamId))
+    const picked = manual.length > 0 ? manual : suggested ? [suggested] : []
+    const pickedDifficulty = picked.length > 0
+      ? picked.reduce((sum, option) => sum + option.rotationDifficulty, 0) / picked.length
+      : null
 
     return {
       gameweek,
-      pickedTeamId: picked?.teamId ?? null,
+      pickedTeamIds: picked.map((option) => option.teamId),
       suggestedTeamId: suggested?.teamId ?? null,
-      isManual: Boolean(manual),
-      difficulty: picked?.rotationDifficulty ?? null,
-      fixtureCount: picked?.fixtures.length ?? 0,
+      isManual: manual.length > 0,
+      difficulty: pickedDifficulty,
+      fixtureCount: picked.reduce((sum, option) => sum + option.fixtures.length, 0),
     }
   })
 }

@@ -1,4 +1,4 @@
-import type { ManualPicks, RotationPlan } from './types'
+import type { GameweekKey, ManualPicks, RotationPlan, TeamKey } from './types'
 
 const STORAGE_KEY = 'touchline.rotation-plans.v2'
 
@@ -16,9 +16,19 @@ function isPlan(value: unknown): value is RotationPlan {
     && typeof plan.createdAt === 'string'
 }
 
-function validManualPicks(value: unknown): value is ManualPicks {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  return Object.entries(value).every(([gameweek, teamKey]) => /^\d+$/.test(gameweek) && typeof teamKey === 'string')
+export function normalizeManualPicks(value: unknown): ManualPicks {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const normalized: ManualPicks = {}
+  for (const [gameweek, storedKeys] of Object.entries(value)) {
+    if (!/^\d+$/.test(gameweek)) continue
+    const keys = typeof storedKeys === 'string'
+      ? [storedKeys]
+      : Array.isArray(storedKeys)
+        ? storedKeys.filter((key): key is TeamKey => typeof key === 'string')
+        : []
+    if (keys.length > 0) normalized[gameweek as GameweekKey] = [...new Set(keys)]
+  }
+  return normalized
 }
 
 export function loadPlans(): RotationPlan[] | null {
@@ -29,7 +39,7 @@ export function loadPlans(): RotationPlan[] | null {
     if (!Array.isArray(parsed) || !parsed.every(isPlan)) return null
     return parsed.map((plan) => ({
       ...plan,
-      manualPicks: validManualPicks(plan.manualPicks) ? plan.manualPicks : {},
+      manualPicks: normalizeManualPicks(plan.manualPicks),
     }))
   } catch {
     return null
