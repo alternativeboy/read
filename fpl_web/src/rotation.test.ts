@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest'
+import { averageDifficulty, getRotationWeeks, rotationScore } from './rotation'
+import type { TeamFixture } from './types'
+
+const fixtures: TeamFixture[] = [
+  { event: 1, teamId: 1, opponentId: 10, venue: 'A', difficulty: 4 },
+  { event: 1, teamId: 2, opponentId: 11, venue: 'H', difficulty: 2 },
+  { event: 2, teamId: 1, opponentId: 12, venue: 'H', difficulty: 1 },
+  { event: 2, teamId: 2, opponentId: 13, venue: 'A', difficulty: 3 },
+]
+
+describe('rotation planning', () => {
+  it('chooses the easiest club in each gameweek', () => {
+    const weeks = getRotationWeeks({ teamIds: [1, 2] }, fixtures, [1, 2])
+    expect(weeks.map((week) => week.bestTeamId)).toEqual([2, 1])
+    expect(weeks.map((week) => week.difficulty)).toEqual([2, 1])
+  })
+
+  it('calculates average fixture difficulty and a bounded score', () => {
+    const weeks = getRotationWeeks({ teamIds: [1, 2] }, fixtures, [1, 2])
+    expect(averageDifficulty(weeks)).toBe(1.5)
+    expect(rotationScore(weeks)).toBe(90)
+  })
+
+  it('penalizes missing fixture coverage', () => {
+    const weeks = getRotationWeeks({ teamIds: [1] }, fixtures, [1, 2, 3, 4])
+    expect(rotationScore(weeks)).toBeLessThan(50)
+  })
+
+  it('accounts for every match in a double gameweek', () => {
+    const doubleFixtures: TeamFixture[] = [
+      ...fixtures,
+      { event: 1, teamId: 1, opponentId: 14, venue: 'H', difficulty: 1 },
+    ]
+    const [week] = getRotationWeeks({ teamIds: [1, 2] }, doubleFixtures, [1])
+    expect(week.bestTeamId).toBe(1)
+    expect(week.fixtureCount).toBe(2)
+    expect(week.difficulty).toBe(1.75)
+  })
+})
